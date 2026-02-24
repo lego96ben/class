@@ -1,6 +1,30 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+    <script>
+        // 1. 詢問通知權限
+        if ('Notification' in window) {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    console.log('通知權限已取得！');
+                } else if (permission === 'denied') {
+                    console.log('使用者拒絕接收通知');
+                }
+            });
+        }
+
+        // 2. 註冊 Service Worker (讓手機知道 firebase-messaging-sw.js 的存在)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./firebase-messaging-sw.js')
+                .then((reg) => {
+                    console.log('Service Worker 註冊成功', reg);
+                })
+                .catch((err) => {
+                    console.log('Service Worker 註冊失敗', err);
+                });
+        }
+    </script>
+</body>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>iSchedule Pro - 暖橘編輯版</title>
@@ -280,4 +304,5 @@
 </script>
 
 </body>
+
 </html>
