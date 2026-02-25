@@ -1,38 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <link rel="manifest" href="manifest.json">
-    <script>
-        // 1. 詢問通知權限
-        if ('Notification' in window) {
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    console.log('通知權限已取得！');
-                } else if (permission === 'denied') {
-                    console.log('使用者拒絕接收通知');
-                }
-            });
-        }
-
-        // 2. 註冊 Service Worker (讓手機知道 firebase-messaging-sw.js 的存在)
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./firebase-messaging-sw.js')
-                .then((reg) => {
-                    console.log('Service Worker 註冊成功', reg);
-                })
-                .catch((err) => {
-                    console.log('Service Worker 註冊失敗', err);
-                });
-        }
-    </script>
-</body>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>iSchedule Pro - 暖橘編輯版</title>
+    <title>iSchedule Pro - 暖橘完整版 (含通知)</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
         :root {
             --ios-orange: #FF9500;
-            --ios-red: #FF3B30;
             --warm-gradient: linear-gradient(135deg, #FF9D6C 0%, #BB4E75 100%);
             --glass: rgba(255, 255, 255, 0.25);
         }
@@ -47,16 +22,25 @@
         .phone-frame {
             width: 100%; max-width: 414px;
             background: var(--glass);
-            backdrop-filter: blur(45px); -webkit-backdrop-filter: blur(45px);
+            backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
             border: 1px solid rgba(255,255,255,0.3);
             display: flex; flex-direction: column; position: relative;
         }
 
-        /* 標題區 */
-        .header { padding: 50px 25px 15px; }
-        .header h1 { font-size: 34px; margin: 0; font-weight: 800; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .live-date { font-size: 15px; color: rgba(255,255,255,0.9); margin-top: 5px; font-weight: 500; }
+        /* 頂部標題與功能按鈕區 */
+        .header { padding: 45px 25px 10px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .header h1 { font-size: 30px; margin: 0; font-weight: 800; color: #fff; }
+        
+        .top-actions { display: flex; gap: 8px; }
+        .action-btn { 
+            background: white; color: var(--ios-orange); border: none; 
+            padding: 8px 12px; border-radius: 12px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); font-size: 13px;
+        }
 
+        .live-date { font-size: 14px; color: rgba(255,255,255,0.9); margin-top: 5px; margin-left: 25px; font-weight: 500;}
+
+        /* 星期切換列 */
         .week-nav {
             display: flex; justify-content: space-around;
             padding: 12px; margin: 10px 20px;
@@ -67,75 +51,57 @@
             justify-content: center; border-radius: 14px; cursor: pointer;
             font-size: 14px; transition: 0.3s; color: white;
         }
-        .day-tab.active { background: white; color: var(--ios-orange); font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .day-tab.active { background: white; color: var(--ios-orange); font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1);}
 
-        /* 課表區域 */
+        /* 時間軸與課程卡片 */
         .schedule-scroll { flex: 1; overflow-y: auto; padding: 10px 20px; }
         .time-row { display: flex; min-height: 100px; border-top: 0.5px solid rgba(255,255,255,0.2); }
         .time-label { width: 60px; font-size: 12px; color: rgba(255,255,255,0.8); margin-top: -8px; font-weight: bold; }
 
-        /* 課程卡片 */
         .course-card {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px; border-radius: 18px;
-            margin: 5px 0 15px 0; border-left: 8px solid;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            position: relative; cursor: pointer;
-            transition: transform 0.2s;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 14px; border-radius: 16px;
+            margin: 5px 0 15px 0; border-left: 6px solid;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            position: relative; cursor: pointer; transition: transform 0.2s;
         }
         .course-card:active { transform: scale(0.97); }
-        .course-card h3 { margin: 0; font-size: 18px; color: #333; }
-        .course-card p { margin: 5px 0 0; font-size: 13px; color: #666; }
+        .course-card h3 { margin: 0; font-size: 17px; color: #222; padding-right: 25px;}
+        .course-card p { margin: 4px 0 0; font-size: 12px; color: #666; }
 
-        /* 刪除按鈕 */
-        .delete-btn {
-            position: absolute; top: 12px; right: 12px;
-            width: 24px; height: 24px; background: rgba(0,0,0,0.05);
-            color: #999; border-radius: 50%; display: flex;
-            align-items: center; justify-content: center;
-            font-size: 14px; cursor: pointer; border: none;
-        }
+        .delete-btn { position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; background: rgba(0,0,0,0.05); color: #999; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; border: none; }
 
-        /* 橘紅懸浮按鈕 */
-        .fab {
-            position: absolute; bottom: 35px; right: 25px;
-            width: 65px; height: 65px; background: white;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            color: var(--ios-orange); font-size: 35px; border: none; 
-            box-shadow: 0 10px 20px rgba(0,0,0,0.2); cursor: pointer;
-        }
+        /* 新增按鈕 */
+        .fab { position: absolute; bottom: 35px; right: 25px; width: 65px; height: 65px; background: white; border-radius: 50%; color: var(--ios-orange); font-size: 35px; border: none; box-shadow: 0 10px 20px rgba(0,0,0,0.2); cursor: pointer; }
 
-        /* 編輯/新增 Modal */
-        .modal {
-            position: absolute; top: 100%; left: 0; width: 100%; height: 92%;
-            background: #fff5f0; border-radius: 30px 30px 0 0;
-            padding: 30px; box-sizing: border-box; transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-            z-index: 100; box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
-        }
+        /* 彈窗樣式 */
+        .modal { position: absolute; top: 100%; left: 0; width: 100%; height: 92%; background: #fff5f0; border-radius: 30px 30px 0 0; padding: 30px; box-sizing: border-box; transition: transform 0.4s ease; z-index: 100; }
         .modal.open { transform: translateY(-100%); }
-
-        .form-item {
-            background: white; border-radius: 15px; padding: 15px;
-            margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-        }
+        .form-item { background: white; border-radius: 15px; padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02);}
         input, select { border: none; background: none; font-size: 16px; text-align: right; outline: none; color: #333; }
-        .save-btn {
-            width: 100%; padding: 18px; background: var(--ios-orange);
-            color: white; border-radius: 18px; border: none; font-size: 18px; font-weight: 700;
-            margin-top: 10px; box-shadow: 0 5px 15px rgba(255,149,0,0.3);
-        }
+        input[type="color"] { width: 35px; height: 35px; padding: 0; cursor: pointer; border: none; border-radius: 8px;}
+        .save-btn { width: 100%; padding: 18px; background: var(--ios-orange); color: white; border-radius: 18px; border: none; font-size: 18px; font-weight: 700; margin-top: 10px; cursor: pointer;}
+
+        /* 隱藏的匯出區 */
+        #export-area { position: absolute; left: -9999px; top: 0; width: 1000px; padding: 40px; background: var(--warm-gradient); }
+        .export-table { width: 100%; border-collapse: separate; border-spacing: 10px; background: rgba(255,255,255,0.25); backdrop-filter: blur(20px); border-radius: 20px; }
+        .export-table th { color: white; padding: 15px; font-size: 20px; }
+        .export-table td { background: white; border-radius: 12px; padding: 15px; vertical-align: top; width: 18%; min-height: 80px; }
     </style>
 </head>
 <body>
 
 <div class="phone-frame">
     <div class="header">
-        <h1 id="titleDisplay">課表佈局</h1>
-        <div class="live-date" id="liveDate">載入系統時間...</div>
+        <h1>我的課表</h1>
+        <div class="top-actions">
+            <button class="action-btn" onclick="testNotification()">🔔 測試通知</button>
+            <button class="action-btn" onclick="exportToJPG()">匯出 JPG</button>
+        </div>
     </div>
+    <div class="live-date" id="liveDate">載入系統時間...</div>
 
-    <div class="week-nav" id="weekNav">
+    <div class="week-nav">
         <div class="day-tab" data-day="1">一</div>
         <div class="day-tab" data-day="2">二</div>
         <div class="day-tab" data-day="3">三</div>
@@ -148,61 +114,39 @@
     <button class="fab" onclick="openModal()">+</button>
 
     <div class="modal" id="courseModal">
-        <div style="display:flex; justify-content:space-between; margin-bottom:25px; align-items: center;">
-            <h2 id="modalTitle" style="margin:0; color: #444;">新增安排</h2>
-            <span onclick="closeModal()" style="color:var(--ios-orange); cursor:pointer; font-weight: bold; font-size: 17px;">完成</span>
+        <div style="display:flex; justify-content:space-between; margin-bottom:20px; align-items:center;">
+            <h2 id="modalTitle">新增課程</h2>
+            <span onclick="closeModal()" style="color:var(--ios-orange); cursor:pointer; font-weight:bold; font-size: 17px;">取消</span>
         </div>
-
-        <div class="form-item">
-            <label>課程名稱</label>
-            <input type="text" id="mName" placeholder="例如：行動程式開發">
-        </div>
-        <div class="form-item">
-            <label>選擇星期</label>
-            <select id="mDay">
-                <option value="1">星期一</option>
-                <option value="2">星期二</option>
-                <option value="3">星期三</option>
-                <option value="4">星期四</option>
-                <option value="5">星期五</option>
-            </select>
-        </div>
-        <div class="form-item">
-            <label>上課時間</label>
-            <input type="time" id="mStart" value="08:00">
-        </div>
-        <div class="form-item">
-            <label>下課時間</label>
-            <input type="time" id="mEnd" value="09:30">
-        </div>
-        <div class="form-item">
-            <label>提前通知</label>
-            <select id="mNotice">
-                <option value="20">20 分鐘前</option>
-                <option value="10">10 分鐘前</option>
-                <option value="0">準時通知</option>
-            </select>
-        </div>
-        <div class="form-item">
-            <label>專屬顏色</label>
-            <input type="color" id="mColor" value="#FF9500">
-        </div>
-
-        <button class="save-btn" id="saveActionBtn" onclick="handleSave()">儲存設定</button>
+        <div class="form-item"><label>課程名稱</label><input type="text" id="mName" placeholder="例如：行動程式設計"></div>
+        <div class="form-item"><label>選擇星期</label><select id="mDay"><option value="1">星期一</option><option value="2">星期二</option><option value="3">星期三</option><option value="4">星期四</option><option value="5">星期五</option></select></div>
+        <div class="form-item"><label>開始時間</label><input type="time" id="mStart" value="08:00"></div>
+        <div class="form-item"><label>結束時間</label><input type="time" id="mEnd" value="09:30"></div>
+        <div class="form-item"><label>提前通知</label><select id="mNotice"><option value="20">20 分鐘前</option><option value="10">10 分鐘前</option><option value="0">準時通知</option></select></div>
+        <div class="form-item"><label>顏色標籤</label><input type="color" id="mColor" value="#FF9500"></div>
+        <button class="save-btn" onclick="handleSave()">儲存設定</button>
     </div>
 </div>
 
-<script>
-    let activeDay = new Date().getDay(); 
-    if (activeDay === 0 || activeDay === 6) activeDay = 1;
+<div id="export-area">
+    <h1 style="color:white; text-align:center; font-size:40px; text-shadow: 0 4px 10px rgba(0,0,0,0.2);">週課表總覽</h1>
+    <table class="export-table">
+        <thead>
+            <tr><th>時段</th><th>週一</th><th>週二</th><th>週三</th><th>週四</th><th>週五</th></tr>
+        </thead>
+        <tbody id="export-body"></tbody>
+    </table>
+</div>
 
-    let allCourses = JSON.parse(localStorage.getItem('my_warm_timetable')) || [];
-    let editingId = null; // 紀錄目前正在編輯的 ID
+<script>
+    let activeDay = new Date().getDay() || 1;
+    if (activeDay > 5) activeDay = 1;
+    let allCourses = JSON.parse(localStorage.getItem('my_warm_timetable_v4')) || [];
+    let editingId = null;
 
     function init() {
         const now = new Date();
-        const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
-        document.getElementById('liveDate').innerText = now.toLocaleDateString('zh-TW', options);
+        document.getElementById('liveDate').innerText = now.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
         
         document.querySelectorAll('.day-tab').forEach(tab => {
             if(parseInt(tab.dataset.day) === activeDay) tab.classList.add('active');
@@ -220,7 +164,7 @@
         const view = document.getElementById('scheduleView');
         view.innerHTML = "";
         const timeSlots = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
-
+        
         timeSlots.forEach(time => {
             const row = document.createElement('div');
             row.className = 'time-row';
@@ -248,25 +192,9 @@
         });
     }
 
-    function openModal() {
-        editingId = null;
-        document.getElementById('modalTitle').innerText = "新增課程";
-        document.getElementById('mName').value = "";
-        document.getElementById('courseModal').classList.add('open');
-    }
-
-    function openEditModal(course) {
-        editingId = course.id;
-        document.getElementById('modalTitle').innerText = "編輯課程";
-        document.getElementById('mName').value = course.name;
-        document.getElementById('mDay').value = course.day;
-        document.getElementById('mStart').value = course.start;
-        document.getElementById('mEnd').value = course.end;
-        document.getElementById('mNotice').value = course.notice;
-        document.getElementById('mColor').value = course.color;
-        document.getElementById('courseModal').classList.add('open');
-    }
-
+    // Modal 與儲存邏輯
+    function openModal() { editingId = null; document.getElementById('modalTitle').innerText="新增課程"; document.getElementById('mName').value=""; document.getElementById('courseModal').classList.add('open'); }
+    function openEditModal(c) { editingId = c.id; document.getElementById('modalTitle').innerText="編輯課程"; document.getElementById('mName').value=c.name; document.getElementById('mDay').value=c.day; document.getElementById('mStart').value=c.start; document.getElementById('mEnd').value=c.end; document.getElementById('mNotice').value=c.notice; document.getElementById('mColor').value=c.color; document.getElementById('courseModal').classList.add('open'); }
     function closeModal() { document.getElementById('courseModal').classList.remove('open'); }
 
     function handleSave() {
@@ -276,35 +204,102 @@
         const end = document.getElementById('mEnd').value;
         const notice = document.getElementById('mNotice').value;
         const color = document.getElementById('mColor').value;
-
         if(!name) return alert("請輸入名稱");
 
         if(editingId) {
-            // 編輯邏輯：找到舊的並替換
             allCourses = allCourses.map(c => c.id === editingId ? { ...c, name, day, start, end, notice, color } : c);
         } else {
-            // 新增邏輯
             allCourses.push({ id: Date.now(), name, day, start, end, notice, color });
+            
+            // 如果設定了通知，在控制台留下紀錄 (未來轉 APK 可替換為原生代碼)
+            if (notice > 0) console.log(`[系統排程]: 課程「${name}」將在 ${start} 的 ${notice} 分鐘前發送推播通知。`);
         }
-
-        localStorage.setItem('my_warm_timetable', JSON.stringify(allCourses));
-        closeModal();
-        renderSchedule();
+        localStorage.setItem('my_warm_timetable_v4', JSON.stringify(allCourses));
+        closeModal(); renderSchedule();
     }
 
     function deleteCourse(e, id) {
-        e.stopPropagation(); // 防止觸發編輯彈窗
-        if(confirm("確定移除這項安排嗎？")) {
+        e.stopPropagation();
+        if(confirm("確定刪除這項安排嗎？")) {
             allCourses = allCourses.filter(c => c.id !== id);
-            localStorage.setItem('my_warm_timetable', JSON.stringify(allCourses));
+            localStorage.setItem('my_warm_timetable_v4', JSON.stringify(allCourses));
             renderSchedule();
         }
+    }
+
+    // --- 匯出 JPG 功能 ---
+    function exportToJPG() {
+        const tbody = document.getElementById('export-body');
+        tbody.innerHTML = "";
+        const hours = ["08", "09", "10", "11", "12", "13", "14", "15", "16", "17"];
+
+        hours.forEach(h => {
+            let tr = "<tr>";
+            tr += `<td style="font-weight:bold; text-align:center;">${h}:00</td>`;
+            for(let d=1; d<=5; d++) {
+                const course = allCourses.find(c => c.day == d && c.start.startsWith(h));
+                if(course) {
+                    tr += `<td style="border-top:6px solid ${course.color};"><strong>${course.name}</strong><br><small style="color:#666">${course.start} - ${course.end}</small></td>`;
+                } else {
+                    tr += `<td></td>`;
+                }
+            }
+            tr += "</tr>";
+            tbody.innerHTML += tr;
+        });
+
+        const exportArea = document.getElementById('export-area');
+        html2canvas(exportArea, { scale: 2 }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'iSchedule_本週課表.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        });
+    }
+
+    // --- 通知測試功能 ---
+    function testNotification() {
+        if (!("Notification" in window)) {
+            alert("抱歉，你的瀏覽器不支援網頁通知測試。(iOS Safari 需將網頁加入主畫面才能支援)");
+            return;
+        }
+
+        // 檢查權限
+        if (Notification.permission === "granted") {
+            triggerRealNotification();
+        } else if (Notification.permission !== "denied") {
+            // 請求權限
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    triggerRealNotification();
+                } else {
+                    alert("你拒絕了通知權限，無法測試推播功能。");
+                }
+            });
+        } else {
+            alert("通知權限已被封鎖，請到瀏覽器的「網站設定」中開啟。");
+        }
+    }
+
+    function triggerRealNotification() {
+        alert("✅ 通知權限正常！\n系統將在 3 秒後發送推播，請將瀏覽器縮小或切換至其他分頁以測試效果。");
+        
+        setTimeout(() => {
+            const notif = new Notification("iSchedule 課表提醒", {
+                body: "這是一則測試通知！未來你的課程將會在設定的時間準時提醒你 🔔",
+                icon: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" // 測試用圖示
+            });
+
+            // 點擊通知時回到網頁
+            notif.onclick = function() {
+                window.focus();
+                this.close();
+            };
+        }, 3000);
     }
 
     init();
 </script>
 
 </body>
-
 </html>
-
